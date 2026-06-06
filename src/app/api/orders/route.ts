@@ -1,0 +1,162 @@
+import { NextResponse } from "next/server";
+import { supabase } from "@/lib/supabase-admin";
+import sgMail from "@/lib/sendgrid";
+
+function generateTrackId() {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+export async function GET() {
+  const { data, error } = await supabase
+    .from("orders")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ orders: data });
+}
+
+export async function POST(request: Request) {
+  try {
+    const { customer, items, total, user_id = null } = await request.json();
+    const track_id = generateTrackId();
+    const orderPayload: Record<string, unknown> = {
+      track_id,
+      customer_name: customer.name,
+      customer_email: customer.email,
+      customer_phone: customer.phone,
+      address_street: customer.street,
+      address_city: customer.city,
+      address_state: customer.state,
+      address_zip: customer.zipCode,
+      order_notes: customer.notes,
+      items,
+      total,
+    };
+
+    if (user_id) orderPayload.user_id = user_id;
+
+    const { data, error } = await supabase
+      .from("orders")
+      .insert([orderPayload])
+      .select();
+
+    if (error) throw error;
+
+    const msg = {
+      to: customer.email,
+      from: {
+        email: "admin@elaborate-designs.com",
+        name: "Elev8 Print",
+      },
+      subject: `Your Elev8 Print Order #${track_id} Confirmation`,
+      text: `Hi ${customer.name}, thank you for your order!
+
+Your order ID is ${track_id} and your total is $${total}.
+You can track your order here: https://elev8print.com/track/${track_id}`,
+
+      html: `
+  <div style="font-family: Arial, sans-serif; background-color:#f6f6f6; padding:30px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:auto;background:#ffffff;border-radius:8px;overflow:hidden;">
+      <tr>
+        <td style="background:#111827; padding:20px; text-align:center;">
+          <h1 style="color:#ffffff; margin:0; font-size:24px;">Elev8 Print</h1>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:30px;">
+          <h2 style="color:#111827; margin-top:0;">Order Confirmation</h2>
+          <p style="color:#4b5563; font-size:15px; line-height:1.6;">
+            Hi <strong>${customer.name}</strong>,<br><br>
+            Thank you for your order! We will reach out soon to collect payment and begin processing your order. Here are your order details:
+          </p>
+
+          <div style="background:#f9fafb; padding:15px; border:1px solid #e5e7eb; border-radius:6px; margin-top:15px;">
+            <p style="margin:0; color:#374151; font-size:14px;">
+              <strong>Order ID:</strong> ${track_id}<br>
+              <strong>Total:</strong> $${total}<br>
+              <strong>Email:</strong> ${customer.email}
+            </p>
+          </div>
+
+          <p style="margin-top:25px; text-align:center;">
+            <a href="https://elev8print.com/track/${track_id}" 
+               style="display:inline-block; background:#111827; color:#ffffff; text-decoration:none; padding:12px 24px; border-radius:6px; font-size:15px;">
+              Track Your Order
+            </a>
+          </p>
+
+          <p style="color:#6b7280; font-size:13px; margin-top:40px; line-height:1.5;">
+            If you have any questions, simply reply to this email or contact our support team at 
+            <a href="mailto:admin@elaborate-designs.com" style="color:#2563eb;">admin@elaborate-designs.com</a>.
+          </p>
+        </td>
+      </tr>
+      <tr>
+        <td style="background:#f3f4f6; padding:15px; text-align:center; color:#9ca3af; font-size:12px;">
+          © ${new Date().getFullYear()} Elev8Print — All rights reserved.
+        </td>
+      </tr>
+    </table>
+  </div>`,
+    };
+
+    sgMail.send(msg).catch((err) => console.error("SendGrid error", err));
+
+    const adminEmail = "admin@elaborate-designs.com";
+    const adminMsg = {
+      to: adminEmail,
+      from: {
+        email: adminEmail,
+        name: "Elev8 Print — Order Bot",
+      },
+      subject: `New Order #${track_id} from ${customer.name}`,
+      text: `New order received.
+
+Order ID: ${track_id}
+Customer: ${customer.name} (${customer.email})
+Total: $${total}
+
+View it in the admin panel:
+https://elev8print.com/admin
+`,
+      html: `
+    <div style="font-family: Arial, sans-serif; background:#f6f6f6; padding:24px;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:auto;background:#ffffff;border-radius:8px;overflow:hidden;">
+        <tr>
+          <td style="background:#111827; padding:16px; text-align:center;">
+            <h2 style="color:#fff; margin:0; font-size:18px;">New Order Notification</h2>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:20px; color:#374151; font-size:14px; line-height:1.6;">
+            <p style="margin:0 0 8px;"><strong>Order ID:</strong> ${track_id}</p>
+            <p style="margin:0 0 8px;"><strong>Customer:</strong> ${customer.name} (${customer.email})</p>
+            <p style="margin:0 0 16px;"><strong>Total:</strong> $${total}</p>
+            <p style="margin:0 0 16px;">Open the admin panel to review and process this order:</p>
+            <p style="margin:0; text-align:center;">
+              <a href="https://elev8print.com/admin" style="display:inline-block;background:#111827;color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;">Open Admin Panel</a>
+            </p>
+          </td>
+        </tr>
+      </table>
+    </div>
+  `,
+    };
+
+    sgMail.send(adminMsg).catch((err) =>
+      console.error("SendGrid admin email error", err)
+    );
+
+    return NextResponse.json({ success: true, order: data[0] });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return NextResponse.json(
+      { success: false, error: message },
+      { status: 500 }
+    );
+  }
+}

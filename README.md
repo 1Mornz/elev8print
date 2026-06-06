@@ -1,36 +1,69 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Elev8 Print
 
-## Getting Started
+Next.js serverless application for Elev8 Print — custom stickers, mylar bags, order management, and admin tools. Deployed on Vercel.
 
-First, run the development server:
+## Stack
+
+- **Next.js 16** (App Router, serverless API routes)
+- **Supabase** (database, auth, file storage)
+- **SendGrid** (transactional email)
+- **Zustand** (cart state)
+
+## Getting started
 
 ```bash
+npm install
+cp .env.example .env.local
+# Fill in your environment variables
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Variable | Scope | Description |
+|----------|-------|-------------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Public | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public | Supabase anon key (client auth) |
+| `SUPABASE_URL` | Server | Supabase project URL |
+| `SUPABASE_KEY` | Server | Supabase service role key |
+| `SENDGRID_API_KEY` | Server | SendGrid API key |
+| `JWT_SECRET` | Server | Secret for admin JWT tokens |
+| `ADMIN_PASSWORD` | Server | Admin panel login password |
+| `JWT_EXPIRES_IN` | Server | Admin token expiry (default: `1h`) |
 
-## Learn More
+## API routes
 
-To learn more about Next.js, take a look at the following resources:
+All former Express backend endpoints are now Next.js Route Handlers under `/api/`:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `GET /api/health` — health check
+- `POST /api/auth/login` — admin authentication
+- `POST /api/contact` — contact form
+- `GET /api/pricing` — sticker pricing proxy
+- `GET/POST /api/orders` — list / create orders
+- `POST /api/orders/upload` — design file upload
+- `GET /api/orders/track/:track_id` — track order
+- `GET /api/orders/mine/:user_id` — user orders
+- `PATCH /api/orders/:id/status` — update order status (auth)
+- `DELETE /api/orders/:id` — delete order (auth)
+- `GET /api/posts` — list posts
+- `PATCH /api/posts/:id` — update post
 
 ## Deploy on Vercel
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. Push this repo to GitHub
+2. Import the project in [Vercel](https://vercel.com)
+3. Add all environment variables from `.env.example`
+4. Deploy
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+No separate backend server is required — API routes run as Vercel serverless functions.
+
+## Scripts
+
+```bash
+npm run dev      # Development server
+npm run build    # Production build
+npm run start    # Start production server
+npm run lint     # ESLint
+```
