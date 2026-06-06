@@ -2,13 +2,24 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 let client: SupabaseClient | undefined;
 
+function resolveSupabaseUrl(): string {
+  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+  if (!url) {
+    throw new Error("Missing SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL in environment");
+  }
+
+  // Common misconfiguration: .supabase.com is invalid; host is always .supabase.co
+  return url.replace(/\.supabase\.com\b/i, ".supabase.co").replace(/\/$/, "");
+}
+
 function getSupabaseAdmin(): SupabaseClient {
   if (!client) {
-    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseUrl = resolveSupabaseUrl();
     const supabaseKey = process.env.SUPABASE_KEY;
 
-    if (!supabaseUrl || !supabaseKey) {
-      throw new Error("Missing SUPABASE_URL or SUPABASE_KEY in environment");
+    if (!supabaseKey) {
+      throw new Error("Missing SUPABASE_KEY in environment");
     }
 
     client = createClient(supabaseUrl, supabaseKey, {
